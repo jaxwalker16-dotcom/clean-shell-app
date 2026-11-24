@@ -1677,7 +1677,7 @@ function renderServices(v) {
   $('#sv_map').onchange = e => Settings.set({ mapApp: e.target.value });
   $('#sv_ref').onclick = () => referralSheet();
   $('#sv_import').onclick = () => { const i = $('#sv_importfile'); i.value = ''; i.click(); };
-  $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped} already here` : ''}`, 4000); } catch (err) { toast('That file couldn\'t be read'); } };
+  $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.jobs ? ` and ${r.jobs} job${r.jobs === 1 ? '' : 's'}` : ''}${r.skipped + r.jobsSkipped ? ` · skipped ${r.skipped + r.jobsSkipped} already here` : ''}`, 5000); } catch (err) { toast('That file couldn\'t be read'); } };
   v.querySelectorAll('[data-sn]').forEach(i => i.onchange = () => { cat[+i.dataset.sn].name = i.value.trim(); Catalog.set(cat); });
   v.querySelectorAll('[data-sp]').forEach(i => i.onchange = () => {
     const c = cat[+i.dataset.sp], val = i.value.trim() === '' ? null : parseFloat(i.value.replace(/[^0-9.]/g, ''));
@@ -2014,7 +2014,22 @@ async function importClients(data) {
     await DB.put('customers', { id: uid(), createdAt: +new Date(r.createdAt) || Date.now(), name, phone: s(r.phone), email: s(r.email), address: s(r.address), city: s(r.city), vehicle: s(r.vehicle), referral: s(r.referral), notes: s(r.notes), interval: 0, sourceId: s(r.sourceId) });
     k.forEach(x => keys.add(x)); added++;
   }
-  return { added, skipped };
+  let jobs = 0, jobsSkipped = 0;
+  if (data && Array.isArray(data.jobs)) {
+    const custs = await DB.all('customers'), bySrc = Object.fromEntries(custs.filter(c => c.sourceId).map(c => [c.sourceId, c]));
+    const haveJobs = new Set((await DB.all('jobs')).map(j => j.sourceId).filter(Boolean));
+    for (const r of data.jobs) {
+      if (!r.sourceId || haveJobs.has(r.sourceId)) { jobsSkipped++; continue; }
+      const c = bySrc[r.clientSourceId] || {}, s = v => String(v || '').trim();
+      const j = { id: uid(), createdAt: Date.now(), sourceId: r.sourceId, status: r.status || 'Done', date: s(r.date), time: s(r.time) || '09:00', duration: +r.duration || 3, size: 'M',
+        customerId: c.id || '', customer: c.name || s(r.customer), phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', vehicle: s(r.vehicle), services: s(r.services), notes: s(r.notes),
+        items: (r.items || []).map(i => ({ name: s(i.name) || 'Service', price: +i.price || 0, qty: +i.qty || 1 })) };
+      if (r.paid) j.billing = { status: 'paid', method: s(r.method) || 'Other', paidAt: +new Date(r.date + 'T12:00:00'), amount: +r.amount || 0 };
+      else if (r.invoiced) j.billing = { status: 'invoiced' };
+      await DB.put('jobs', j); haveJobs.add(r.sourceId); jobs++;
+    }
+  }
+  return { added, skipped, jobs, jobsSkipped };
 }
 function referralSheet(onDone) { editListSheet({ title: 'Referral sources', sub: 'How clients found you. Rename, remove or add your own.', add: 'Add source', store: Referrals, defaults: DEFAULT_REFERRALS }, onDone); }
 function editListSheet(o, onDone) {
