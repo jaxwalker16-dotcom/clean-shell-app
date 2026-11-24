@@ -1660,7 +1660,8 @@ function renderServices(v) {
 </div>
   <div class="card"><h2>Clients</h2>
     <label class="f" for="sv_map">Directions open in</label><select class="t" id="sv_map"><option value="">Ask every time</option>${Object.entries(MAP_APPS).map(([k, m]) => `<option value="${k}" ${s.mapApp === k ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select>
-    <button class="btn ghost block" id="sv_ref" style="margin-top:12px">Edit referral sources</button></div>
+    <button class="btn ghost block" id="sv_ref" style="margin-top:12px">Edit referral sources</button>
+    <button class="btn ghost block" id="sv_import" style="margin-top:8px">Import clients from file</button><input type="file" id="sv_importfile" accept=".json,application/json" hidden></div>
   <div class="card"><h2>Services<span class="count">Small · Medium · Large</span></h2>
     ${cat.map((c, n) => `<div class="svc"><div class="svc-top"><input class="t" data-sn="${n}" value="${esc(c.name)}"><button class="x" data-sdel="${n}" aria-label="Remove">${I('x')}</button></div>
       <div class="svc-prices">${['S', 'M', 'L'].map(k => `<input class="t money" data-sp="${n}" data-k="${k}" inputmode="decimal" placeholder="${k}" value="${c.prices && c.prices[k] != null ? c.prices[k] : ''}">`).join('')}<input class="t money" data-sp="${n}" data-k="one" inputmode="decimal" placeholder="One price" value="${c.price != null ? c.price : ''}"></div></div>`).join('')}
@@ -1675,6 +1676,8 @@ function renderServices(v) {
   $('#sv_tax').onchange = e => Settings.set({ taxRate: parseFloat(e.target.value) || 0 });
   $('#sv_map').onchange = e => Settings.set({ mapApp: e.target.value });
   $('#sv_ref').onclick = () => referralSheet();
+  $('#sv_import').onclick = () => { const i = $('#sv_importfile'); i.value = ''; i.click(); };
+  $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.skipped ? ` · skipped ${r.skipped} already here` : ''}`, 4000); } catch (err) { toast('That file couldn\'t be read'); } };
   v.querySelectorAll('[data-sn]').forEach(i => i.onchange = () => { cat[+i.dataset.sn].name = i.value.trim(); Catalog.set(cat); });
   v.querySelectorAll('[data-sp]').forEach(i => i.onchange = () => {
     const c = cat[+i.dataset.sp], val = i.value.trim() === '' ? null : parseFloat(i.value.replace(/[^0-9.]/g, ''));
@@ -1996,6 +1999,22 @@ function bindReferral(sel, save) {
     if (sel.value === '__edit') { sel.value = prev; referralSheet(() => { sel.innerHTML = referralOptions(prev); }); return; }
     prev = sel.value; save && save(prev);
   };
+}
+async function importClients(data) {
+  const rows = Array.isArray(data) ? data : (data && Array.isArray(data.clients) ? data.clients : null);
+  if (!rows) throw new Error('bad file');
+  const have = await DB.all('customers'), digits = s => String(s || '').replace(/\D/g, '').slice(-10);
+  const keys = new Set(have.flatMap(c => [c.sourceId && 'id:' + c.sourceId, digits(c.phone) && 'ph:' + digits(c.phone), c.email && 'em:' + c.email.toLowerCase(), c.name && 'nm:' + c.name.trim().toLowerCase()].filter(Boolean)));
+  let added = 0, skipped = 0;
+  for (const r of rows) {
+    const name = String(r.name || '').replace(/\s+/g, ' ').trim(); if (!name) continue;
+    const k = [r.sourceId && 'id:' + r.sourceId, digits(r.phone) && 'ph:' + digits(r.phone), r.email && 'em:' + String(r.email).toLowerCase(), 'nm:' + name.toLowerCase()].filter(Boolean);
+    if (k.some(x => keys.has(x))) { skipped++; continue; }
+    const s = v => String(v || '').trim();
+    await DB.put('customers', { id: uid(), createdAt: +new Date(r.createdAt) || Date.now(), name, phone: s(r.phone), email: s(r.email), address: s(r.address), city: s(r.city), vehicle: s(r.vehicle), referral: s(r.referral), notes: s(r.notes), interval: 0, sourceId: s(r.sourceId) });
+    k.forEach(x => keys.add(x)); added++;
+  }
+  return { added, skipped };
 }
 function referralSheet(onDone) { editListSheet({ title: 'Referral sources', sub: 'How clients found you. Rename, remove or add your own.', add: 'Add source', store: Referrals, defaults: DEFAULT_REFERRALS }, onDone); }
 function editListSheet(o, onDone) {
