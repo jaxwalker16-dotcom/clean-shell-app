@@ -512,6 +512,16 @@ label.f{font-size:13px;font-weight:500;margin:14px 2px 6px}
 .pc footer a{color:var(--n)}
 
 /*PORTAL-CSS-END*/
+/* phase 12: products polish */
+.secchips{-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;touch-action:pan-x pan-y;cursor:grab;-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent);mask-image:linear-gradient(90deg,#000 88%,transparent);padding-right:40px}
+.secchips.uses{margin-top:-6px}
+.secchips.uses .chip{padding:7px 12px;font-size:13px}
+.usechips{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.usechips .chip{padding:7px 12px;font-size:13px}
+select.t,select{background-color:#0E2A45!important;color:#F2F4F1!important;border-color:rgba(175,216,255,.25)!important}
+select option,select optgroup{background:#0E2A45;color:#F2F4F1}
+.pc select{background-color:#F6F7F5!important;color:var(--n)!important;border-color:var(--line)!important}
+.pc select option{background:#fff;color:var(--n)}
 </style>
 </head>
 <body>
@@ -637,6 +647,7 @@ const ICONS = {
   calendar: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/>',
   chat: '<path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 20.5l1.6-5.2A8.4 8.4 0 1 1 21 11.5z"/>',
   box: '<path d="M21 7.5l-9-5-9 5v9l9 5 9-5z"/><path d="M3 7.5l9 5 9-5M12 12.5v9"/>',
+  spray: '<path d="M7 2.5h8v3.5H9L7 4.5z"/><path d="M7 3.5H4.5M3 1.8v.01M3 5.2v.01M9 6l-1.6 3.4M10.5 6v3M13.5 6v3"/><path d="M10 9h4l3 4v7a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2v-7z"/>',
   pin: '<path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/>',
   nav: '<path d="M3 11l18-8-8 18-2-8z"/>',
   car: '<path d="M5 17H3.8a.8.8 0 0 1-.8-.8V13a2 2 0 0 1 .4-1.2L5.6 7.8A2 2 0 0 1 7.3 7h9.4a2 2 0 0 1 1.7.8l2.2 4A2 2 0 0 1 21 13v3.2a.8.8 0 0 1-.8.8H19"/><path d="M9 17h6M3.5 12h17"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/>',
@@ -1986,21 +1997,22 @@ function bindReferral(sel, save) {
     prev = sel.value; save && save(prev);
   };
 }
-function referralSheet(onDone) {
-  const sheet = $('#sheet'), list = Referrals.get();
+function referralSheet(onDone) { editListSheet({ title: 'Referral sources', sub: 'How clients found you. Rename, remove or add your own.', add: 'Add source', store: Referrals, defaults: DEFAULT_REFERRALS }, onDone); }
+function editListSheet(o, onDone) {
+  const sheet = $('#sheet'), list = o.store.get(), DEFAULTS = o.defaults;
   const draw = () => {
-    sheet.innerHTML = `<div class="sheet-box"><div class="sheet-head"><b>Referral sources</b><button class="x" id="rs_x" aria-label="Close">${I('x')}</button></div>
-      <div class="sub">How clients found you. Rename, remove or add your own.</div>
+    sheet.innerHTML = `<div class="sheet-box"><div class="sheet-head"><b>${esc(o.title)}</b><button class="x" id="rs_x" aria-label="Close">${I('x')}</button></div>
+      <div class="sub">${esc(o.sub)}</div>
       ${list.map((r, n) => `<div class="ref-row"><input class="t" data-rs="${n}" value="${esc(r)}"><button class="x" data-rsdel="${n}" aria-label="Remove ${esc(r)}">${I('x')}</button></div>`).join('')}
-      <button class="btn ghost block" id="rs_add" style="margin-top:12px">${I('plus')}Add source</button>
+      <button class="btn ghost block" id="rs_add" style="margin-top:12px">${I('plus')}${esc(o.add)}</button>
       <div class="row" style="margin-top:8px"><button class="btn ghost" id="rs_reset">Reset</button><button class="btn" id="rs_done">Done</button></div></div>`;
     sheet.querySelectorAll('[data-rs]').forEach(i => i.oninput = () => { list[+i.dataset.rs] = i.value; });
     sheet.querySelectorAll('[data-rsdel]').forEach(b => b.onclick = () => { list.splice(+b.dataset.rsdel, 1); draw(); });
     $('#rs_add').onclick = () => { list.push(''); draw(); const ins = sheet.querySelectorAll('[data-rs]'); ins[ins.length - 1].focus(); };
-    $('#rs_reset').onclick = () => { list.splice(0, list.length, ...DEFAULT_REFERRALS); draw(); };
+    $('#rs_reset').onclick = () => { list.splice(0, list.length, ...DEFAULTS); draw(); };
     $('#rs_x').onclick = $('#rs_done').onclick = close;
   };
-  const close = () => { Referrals.set(list); sheet.classList.remove('on'); sheet.innerHTML = ''; onDone && onDone(); };
+  const close = () => { o.store.set(list); sheet.classList.remove('on'); sheet.innerHTML = ''; onDone && onDone(); };
   sheet.onclick = e => { if (e.target === sheet) close(); };
   draw(); sheet.classList.add('on');
 }
@@ -2252,23 +2264,53 @@ function pickCustomerSheet(cs, jobs) {
 }
 
 /* ---------- phase 9: products & purchases ---------- */
-const PROD_SECTIONS = ['Chemicals', 'Coatings & protection', 'Tools & equipment', 'Towels, pads & brushes', 'Marine', 'Clothing & gear', 'Shop supplies', 'Other'];
+const PROD_SECTIONS = ['Chemicals', 'Tools & equipment', 'Towels, pads & brushes', 'Marine', 'Clothing & gear', 'Shop supplies', 'Other'];
 const STOCK = { good: 'Stocked', low: 'Running low', out: 'Out' };
 const SECTION_TO_CAT = { 'Chemicals': 'Products & chemicals', 'Coatings & protection': 'Products & chemicals', 'Marine': 'Products & chemicals', 'Tools & equipment': 'Equipment & tools', 'Towels, pads & brushes': 'Supplies', 'Shop supplies': 'Supplies', 'Clothing & gear': 'Supplies', 'Other': 'Other' };
 const STARTER_PRODUCTS = [
-  ['Gtechniq C2 v3 Liquid Crystal', 'Gtechniq', 'Coatings & protection', 'Ceramic spray sealant (Premium package)'],
-  ['Gtechniq C4 Permanent Trim Restorer', 'Gtechniq', 'Coatings & protection', 'Trim protection'],
-  ['Gtechniq Crystal Serum Light', 'Gtechniq', 'Coatings & protection', 'Ceramic coating'],
-  ['Gtechniq EXO v5', 'Gtechniq', 'Coatings & protection', 'Ceramic coating top layer'],
-  ['Gtechniq Halo v2', 'Gtechniq', 'Coatings & protection', 'Coating for PPF and wraps'],
+  ['Gtechniq C2 v3 Liquid Crystal', 'Gtechniq', 'Chemicals', 'Ceramic spray sealant (Premium package)', ['Coatings & protection']],
+  ['Gtechniq C4 Permanent Trim Restorer', 'Gtechniq', 'Chemicals', 'Trim protection', ['Trim & plastics', 'Coatings & protection']],
+  ['Gtechniq Crystal Serum Light', 'Gtechniq', 'Chemicals', 'Ceramic coating', ['Coatings & protection']],
+  ['Gtechniq EXO v5', 'Gtechniq', 'Chemicals', 'Ceramic coating top layer', ['Coatings & protection']],
+  ['Gtechniq Halo v2', 'Gtechniq', 'Chemicals', 'Coating for PPF and wraps', ['Coatings & protection']],
   ['303 Aerospace Protectant', '303', 'Marine', 'UV protection for vinyl, plastic, rubber'],
   ['Star brite marine cleaner', 'Star brite', 'Marine', 'Boat and pontoon cleaning'],
   ['Iosso Mold & Mildew Stain Remover', 'Iosso', 'Marine', 'Mold and mildew on marine vinyl'],
   ['Wet & Forget', 'Wet & Forget', 'Marine', 'Mold, mildew and algae'],
   ['BioSweep unit', 'BioSweep', 'Tools & equipment', 'Odor removal'],
   ['MJJC Foam Cannon Pro V3.0', 'MJJC', 'Tools & equipment', 'Pre-wash foam'],
-].map(([name, brand, section, use]) => ({ name, brand, section, use }));
+].map(([name, brand, section, use, uses]) => ({ name, brand, section, use, uses: uses || [] }));
+const DEFAULT_USES = ['Exterior wash', 'Wheels & tires', 'Interior', 'Glass', 'Leather', 'Decon', 'Coatings & protection', 'Trim & plastics', 'Odor', 'Engine bay'];
+const ChemUses = {
+  get() { const r = Settings.get().chemUses; return Array.isArray(r) ? r : DEFAULT_USES.slice(); },
+  set(r) { Settings.set({ chemUses: r.map(x => String(x).trim()).filter(Boolean) }); },
+};
+const usesSheet = onDone => editListSheet({ title: 'Chemical uses', sub: 'Tags for what each chemical is for. Rename, remove or add your own.', add: 'Add use', store: ChemUses, defaults: DEFAULT_USES }, onDone);
+async function migrateCoatings() {
+  if (Settings.get().coatingsMerged) return;
+  for (const p of await DB.all('products')) if (p.section === 'Coatings & protection') { p.section = 'Chemicals'; p.uses = [...new Set([...(p.uses || []), 'Coatings & protection'])]; await DB.put('products', p); }
+  Settings.set({ coatingsMerged: true });
+}
+function usesBoxHtml(p) {
+  const list = ChemUses.get(), mine = p.uses || [], all = [...list, ...mine.filter(u => !list.includes(u))];
+  return `<label class="f">Uses</label><div class="usechips">${all.map(u => `<button type="button" class="chip ${mine.includes(u) ? 'on' : ''}" data-use="${esc(u)}">${esc(u)}</button>`).join('')}<button type="button" class="chip" data-useedit>Edit uses…</button></div>`;
+}
+function bindUses(box, p, save) {
+  box.querySelectorAll('[data-use]').forEach(b => b.onclick = () => { const u = b.dataset.use, s = new Set(p.uses || []); s.has(u) ? s.delete(u) : s.add(u); p.uses = [...s]; b.classList.toggle('on', s.has(u)); save && save(); });
+  const e = box.querySelector('[data-useedit]'); if (e) e.onclick = () => usesSheet(() => { box.innerHTML = usesBoxHtml(p); bindUses(box, p, save); });
+}
+function dragScroll(el) {
+  if (!el) return;
+  let x0 = null, s0 = 0, moved = false;
+  el.addEventListener('wheel', e => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); } }, { passive: false });
+  el.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') return; x0 = e.clientX; s0 = el.scrollLeft; moved = false; });
+  el.addEventListener('pointermove', e => { if (x0 == null) return; const d = e.clientX - x0; if (Math.abs(d) > 4) moved = true; el.scrollLeft = s0 - d; });
+  addEventListener('pointerup', () => { x0 = null; });
+  el.addEventListener('click', e => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } }, true);
+  const on = el.querySelector('.chip.on'); if (on && on.offsetLeft + on.offsetWidth > el.clientWidth) el.scrollLeft = on.offsetLeft - 14;
+}
 async function seedProducts() {
+  await migrateCoatings();
   if (Settings.get().productsSeeded) return;
   if ((await DB.all('products')).length) { Settings.set({ productsSeeded: true }); return; }
   for (const p of STARTER_PRODUCTS) await DB.put('products', { id: uid(), createdAt: Date.now(), stock: 'good', size: '', dilution: '', store: '', link: '', price: null, notes: '', ...p });
@@ -2276,28 +2318,34 @@ async function seedProducts() {
 }
 const safeLink = u => /^https:\/\//i.test(String(u || '').trim()) ? String(u).trim() : (/^[\w.-]+\.[a-z]{2,}(\/|$)/i.test(String(u || '').trim()) ? 'https://' + String(u).trim() : '');
 
-renderProducts.q = ''; renderProducts.sec = 'All';
+renderProducts.q = ''; renderProducts.sec = 'All'; renderProducts.use = '';
 async function renderProducts(v) {
   currentJob = null; setHeader('Products', null); tabbar('products');
   await seedProducts();
-  const all = await DB.all('products'), q = renderProducts.q.toLowerCase(), sec = renderProducts.sec;
-  const match = p => (!q || [p.name, p.brand, p.use, p.store, p.notes, p.dilution].join(' ').toLowerCase().includes(q)) && (sec === 'All' || p.section === sec);
+  if (!PROD_SECTIONS.includes(renderProducts.sec)) renderProducts.sec = 'All';
+  const all = await DB.all('products'), q = renderProducts.q.toLowerCase(), sec = renderProducts.sec, use = sec === 'Chemicals' ? renderProducts.use : '';
+  const uses = ChemUses.get();
+  const match = p => (!q || [p.name, p.brand, p.use, p.store, p.notes, p.dilution, ...(p.uses || [])].join(' ').toLowerCase().includes(q)) && (sec === 'All' || p.section === sec) && (!use || (p.uses || []).includes(use));
   const list = all.filter(match).sort((a, b) => a.name.localeCompare(b.name));
   const low = all.filter(p => p.stock === 'low' || p.stock === 'out');
   const counts = Object.fromEntries(PROD_SECTIONS.map(s => [s, all.filter(p => p.section === s).length]));
   const row = p => `<a class="prow" href="#/product/${p.id}">
-      <span class="pthumb" ${p.photo ? `style="background-image:url(${blobUrl('p' + p.id + (p.photoAt || ''), p.photo)})"` : ''}>${p.photo ? '' : I('box')}</span>
+      <span class="pthumb" ${p.photo ? `style="background-image:url(${blobUrl('p' + p.id + (p.photoAt || ''), p.photo)})"` : ''}>${p.photo ? '' : I('spray')}</span>
       <span class="pmain"><b>${esc(p.name)}</b><span class="sub">${esc([p.brand, p.size].filter(Boolean).join(' · ') || p.use || '')}</span>
-        <span class="pmeta">${p.dilution ? `<span class="pill">${esc(p.dilution)}</span>` : ''}${p.stock !== 'good' ? `<span class="pill ${p.stock === 'out' ? 'warn' : 'warn'}">${STOCK[p.stock]}</span>` : ''}${p.store ? `<span class="sub">${esc(p.store)}</span>` : ''}</span></span>
+        <span class="pmeta">${p.section === 'Chemicals' ? (p.uses || []).slice(0, 2).map(u => `<span class="pill">${esc(u)}</span>`).join('') : ''}${p.dilution ? `<span class="pill">${esc(p.dilution)}</span>` : ''}${p.stock !== 'good' ? `<span class="pill ${p.stock === 'out' ? 'warn' : 'warn'}">${STOCK[p.stock]}</span>` : ''}${p.store ? `<span class="sub">${esc(p.store)}</span>` : ''}</span></span>
       <span class="chev">${I('chev')}</span></a>`;
   const grouped = (sec === 'All' && !q) ? PROD_SECTIONS.filter(s => list.some(p => p.section === s)).map(s => `<div class="section-h">${esc(s)}</div><div class="card plist">${list.filter(p => p.section === s).map(row).join('')}</div>`).join('')
     : (list.length ? `<div class="card plist">${list.map(row).join('')}</div>` : '<div class="empty" style="padding:40px 10px"><p>No products match.</p></div>');
   v.innerHTML = `<input class="t search" id="pr_q" type="search" placeholder="Search products, brands, stores" value="${esc(renderProducts.q)}">
     <div class="secchips">${['All', ...PROD_SECTIONS].map(s => `<button class="chip ${s === sec ? 'on' : ''}" data-sec="${esc(s)}">${esc(s)}${s !== 'All' && counts[s] ? ' · ' + counts[s] : ''}</button>`).join('')}</div>
+    ${sec === 'Chemicals' ? `<div class="secchips uses">${['', ...uses].map(u => `<button class="chip ${u === use ? 'on' : ''}" data-usef="${esc(u)}">${u ? esc(u) + (all.some(p => (p.uses || []).includes(u)) ? ' · ' + all.filter(p => p.section === 'Chemicals' && (p.uses || []).includes(u)).length : '') : 'All uses'}</button>`).join('')}<button class="chip" data-useedit>Edit uses…</button></div>` : ''}
     ${low.length && sec === 'All' && !q ? `<div class="card due"><h2>${I('bell')}Need to restock<span class="count">${low.length}</span></h2>${low.map(p => `<div class="duerow"><a href="#/product/${p.id}"><b>${esc(p.name)}</b><span class="sub">${STOCK[p.stock]}${p.store ? ' · ' + esc(p.store) : ''}</span></a>${safeLink(p.link) ? `<a class="btn ghost" href="${esc(safeLink(p.link))}" target="_blank" rel="noopener">Buy</a>` : ''}</div>`).join('')}</div>` : ''}
     ${grouped}`;
   headerAdd('#/product/new', 'Add product');
-  v.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => { renderProducts.sec = b.dataset.sec; renderProducts(v); });
+  v.querySelectorAll('[data-sec]').forEach(b => b.onclick = () => { renderProducts.sec = b.dataset.sec; renderProducts.use = ''; renderProducts(v); });
+  v.querySelectorAll('[data-usef]').forEach(b => b.onclick = () => { renderProducts.use = b.dataset.usef; renderProducts(v); });
+  const ue = v.querySelector('.secchips [data-useedit]'); if (ue) ue.onclick = () => usesSheet(() => renderProducts(v));
+  v.querySelectorAll('.secchips').forEach(dragScroll);
   const s = $('#pr_q'); s.oninput = () => { renderProducts.q = s.value; clearTimeout(s._t); s._t = setTimeout(() => renderProducts(v).then(() => { const n = $('#pr_q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }), 250); };
 }
 
@@ -2320,6 +2368,7 @@ async function renderProduct(v, id) {
       ${f('name', 'Name', 'e.g. Koch-Chemie Green Star')}
       <div class="two"><div>${f('brand', 'Brand')}</div><div>${f('size', 'Size', 'e.g. 1 gal')}</div></div>
       <label class="f" for="pd_section">Section</label><select class="t" id="pd_section">${PROD_SECTIONS.map(s => `<option ${s === p.section ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+      <div id="pd_usesbox" ${p.section === 'Chemicals' ? '' : 'style="display:none"'}>${usesBoxHtml(p)}</div>
       ${f('use', 'What it\'s for', 'e.g. All-purpose cleaner for interiors')}
       ${f('dilution', 'Dilution / how to use', 'e.g. 1:10 interiors, 1:4 wheels')}
       <div class="two"><div>${f('store', 'Where to buy', 'e.g. Detail Garage, Amazon')}</div><div>${f('price', 'Usual price', '$')}</div></div>
@@ -2328,6 +2377,8 @@ async function renderProduct(v, id) {
       ${isNew ? '<button class="btn block" id="pd_save" style="margin-top:14px">Save product</button>' : '<button class="btn danger block" id="pd_del" style="margin-top:14px">Delete product</button>'}
     </div>`;
   const read = () => { for (const k of ['name', 'brand', 'size', 'use', 'dilution', 'store', 'link', 'notes']) p[k] = $('#pd_' + k).value.trim(); p.section = $('#pd_section').value; const pr = parseFloat($('#pd_price').value.replace(/[^0-9.]/g, '')); p.price = pr > 0 ? pr : null; };
+  bindUses($('#pd_usesbox'), p, isNew ? null : () => { read(); if (p.name) DB.put('products', p); });
+  $('#pd_section').addEventListener('change', () => { $('#pd_usesbox').style.display = $('#pd_section').value === 'Chemicals' ? '' : 'none'; });
   if (isNew) {
     $('#pd_save').onclick = async () => { read(); if (!p.name) { toast('Give it a name'); return; } await DB.put('products', p); toast('Saved'); nav('#/product/' + p.id); };
     return;
@@ -3016,7 +3067,7 @@ document.addEventListener('click', e => { const a = e.target.closest('a[href^="#
 /* ---------- boot ---------- */
 setTimeout(() => { pollInbox(); queueBookingPublish(); queueFollowupSync(); }, 2500);
 setTimeout(pollTexts, 1500);
-$('#tabs').innerHTML = [['jobs', 'list', 'Jobs', '#/'], ['schedule', 'calendar', 'Schedule', '#/schedule'], ['messages', 'chat', 'Messages', '#/messages'], ['customers', 'users', 'Clients', '#/customers'], ['products', 'box', 'Products', '#/products'], ['money', 'dollar', 'Money', '#/money']].map(([k, ic, n, h]) => `<a href="${h}" data-tab="${k}">${I(ic)}<span>${n}</span></a>`).join('');
+$('#tabs').innerHTML = [['jobs', 'list', 'Jobs', '#/'], ['schedule', 'calendar', 'Schedule', '#/schedule'], ['messages', 'chat', 'Messages', '#/messages'], ['customers', 'users', 'Clients', '#/customers'], ['products', 'spray', 'Products', '#/products'], ['money', 'dollar', 'Money', '#/money']].map(([k, ic, n, h]) => `<a href="${h}" data-tab="${k}">${I(ic)}<span>${n}</span></a>`).join('');
 $('#backBtn').innerHTML = I('back'); $('#addBtn').innerHTML = I('plus'); $('#settingsBtn').innerHTML = I('gear'); $('#syncBtn').innerHTML = I('cloud');
 render();
 if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
