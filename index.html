@@ -1677,7 +1677,7 @@ function renderServices(v) {
   $('#sv_map').onchange = e => Settings.set({ mapApp: e.target.value });
   $('#sv_ref').onclick = () => referralSheet();
   $('#sv_import').onclick = () => { const i = $('#sv_importfile'); i.value = ''; i.click(); };
-  $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.jobs ? ` and ${r.jobs} job${r.jobs === 1 ? '' : 's'}` : ''}${r.skipped + r.jobsSkipped ? ` · skipped ${r.skipped + r.jobsSkipped} already here` : ''}`, 5000); } catch (err) { toast('That file couldn\'t be read'); } };
+  $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.jobs ? ` and ${r.jobs} job${r.jobs === 1 ? '' : 's'}` : ''}${r.skipped + r.jobsSkipped ? ` · skipped ${r.skipped + r.jobsSkipped} already here` : ''}${r.removed ? ` · removed ${r.removed} old job${r.removed === 1 ? '' : 's'}` : ''}`, 5000); } catch (err) { toast('That file couldn\'t be read'); } };
   v.querySelectorAll('[data-sn]').forEach(i => i.onchange = () => { cat[+i.dataset.sn].name = i.value.trim(); Catalog.set(cat); });
   v.querySelectorAll('[data-sp]').forEach(i => i.onchange = () => {
     const c = cat[+i.dataset.sp], val = i.value.trim() === '' ? null : parseFloat(i.value.replace(/[^0-9.]/g, ''));
@@ -2019,7 +2019,7 @@ async function importClients(data) {
     const custs = await DB.all('customers'), bySrc = Object.fromEntries(custs.filter(c => c.sourceId).map(c => [c.sourceId, c]));
     const haveJobs = new Set((await DB.all('jobs')).map(j => j.sourceId).filter(Boolean));
     for (const r of data.jobs) {
-      if (!r.sourceId || haveJobs.has(r.sourceId)) { jobsSkipped++; continue; }
+      if (!r.sourceId || haveJobs.has(r.sourceId) || (data.removeJobs || []).includes(r.sourceId)) { jobsSkipped++; continue; }
       const c = bySrc[r.clientSourceId] || {}, s = v => String(v || '').trim();
       const j = { id: uid(), createdAt: Date.now(), sourceId: r.sourceId, status: r.status || 'Done', date: s(r.date), time: s(r.time) || '09:00', duration: +r.duration || 3, size: 'M',
         customerId: c.id || '', customer: c.name || s(r.customer), phone: c.phone || '', email: c.email || '', address: c.address || '', city: c.city || '', vehicle: s(r.vehicle), services: s(r.services), notes: s(r.notes),
@@ -2029,7 +2029,12 @@ async function importClients(data) {
       await DB.put('jobs', j); haveJobs.add(r.sourceId); jobs++;
     }
   }
-  return { added, skipped, jobs, jobsSkipped };
+  let removed = 0;
+  if (data && Array.isArray(data.removeJobs) && data.removeJobs.length) {
+    const rm = new Set(data.removeJobs.map(String));
+    for (const j of await DB.all('jobs')) if (j.sourceId && rm.has(j.sourceId)) { await DB.del('jobs', j.id); removed++; }
+  }
+  return { added, skipped, jobs, jobsSkipped, removed };
 }
 function referralSheet(onDone) { editListSheet({ title: 'Referral sources', sub: 'How clients found you. Rename, remove or add your own.', add: 'Add source', store: Referrals, defaults: DEFAULT_REFERRALS }, onDone); }
 function editListSheet(o, onDone) {
