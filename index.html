@@ -2496,7 +2496,7 @@ function netIcs(list) {
     const k = (e.repeat ? null : e.date) || e.date, s = netKeyDate(k); const [h, m] = (e.time || '09:00').split(':').map(Number); s.setHours(h, m, 0, 0);
     const end = new Date(s.getTime() + (+e.duration || 60) * 60000), n = Math.ceil(s.getDate() / 7);
     const rule = { weekly: 'FREQ=WEEKLY', biweekly: 'FREQ=WEEKLY;INTERVAL=2', monthly: 'FREQ=MONTHLY', nth: 'FREQ=MONTHLY;BYDAY=' + (n >= 5 ? '-1' : n) + BY[s.getDay()] }[e.repeat || ''];
-    const desc = [e.kind === 'coffee' && e.coffee && e.coffeeOrder ? 'Their coffee order: ' + e.coffeeOrder : '', e.contact, e.members ? 'Members: ' + e.members : '', e.notes].filter(Boolean).join('\n');
+    const desc = [e.contact, e.members ? 'Members: ' + e.members : '', e.notes].filter(Boolean).join('\n');
     return ['BEGIN:VEVENT', 'UID:' + e.id + '@cleanshell-network', 'DTSTAMP:' + stamp(new Date()), 'DTSTART:' + stamp(s), 'DTEND:' + stamp(end),
       rule ? 'RRULE:' + rule + (e.until ? ';UNTIL=' + e.until.replace(/-/g, '') + 'T235959' : '') : '', ...(e.skips || []).map(x => 'EXDATE:' + x.replace(/-/g, '') + 'T' + p(h) + p(m) + '00'),
       'SUMMARY:' + tx(netTitle(e)), e.location ? 'LOCATION:' + tx(e.location) : '', desc ? 'DESCRIPTION:' + tx(desc) : '',
@@ -2508,7 +2508,7 @@ function netToCalendar(list, name) { if (!Platform.saveIcs) { toast('Calendar ex
 function netCardHtml(e, k) {
   return `<div class="card agenda"><div class="ag-time"><b>${e.time ? fmtTime(new Date(k + 'T' + e.time + ':00')) : 'Any time'}</b><span>${(+e.duration || 60)} min</span></div>
     <div class="ag-body"><a href="#/net/${e.id}" class="ag-title"><b>${esc(netTitle(e))}</b><span class="sub">${esc([netRepeatLabel(e), e.location].filter(Boolean).join(' · '))}</span></a>
-      <div class="meta"><span class="pill">${esc(NET_KINDS[e.kind])}</span>${e.kind === 'coffee' && e.coffee ? `<span class="pill coffee">☕ ${esc(e.coffeeOrder || 'Coffee')}</span>` : ''}</div>
+      <div class="meta"><span class="pill">${esc(NET_KINDS[e.kind])}</span>${e.kind === 'coffee' && e.coffee ? `<span class="pill coffee">☕ Coffee</span>` : ''}</div>
       <div class="ag-actions">${e.location ? `<button class="btn ghost" data-ndir="${e.id}">Directions</button>` : ''}<button class="btn ghost" data-nics="${e.id}">Add to calendar</button></div></div></div>`;
 }
 function bindNetCards(v, list) {
@@ -2547,8 +2547,7 @@ async function renderNetItem(v, id, kind) {
     v.innerHTML = `<div class="sizes k3" id="nt_kind">${Object.entries(NET_KINDS).map(([k, n]) => `<button class="${e.kind === k ? 'on' : ''}" data-kind="${k}">${n}</button>`).join('')}</div>
     <div class="card"><h2>Details</h2>
       ${f('name', nameLabel[0], nameLabel[1])}
-      ${e.kind === 'coffee' ? `<label class="toggle"><span>☕ Coffee meeting</span><input type="checkbox" id="nt_coffee" ${e.coffee ? 'checked' : ''}><i></i></label>
-        <div id="nt_cbox" ${e.coffee ? '' : 'style="display:none"'}>${f('coffeeOrder', 'Their coffee order', 'e.g. Oat latte, black drip')}</div>` : ''}
+      ${e.kind === 'coffee' ? `<label class="toggle"><span>☕ Coffee meeting</span><input type="checkbox" id="nt_coffee" ${e.coffee ? 'checked' : ''}><i></i></label>` : ''}
       <div class="two"><div>${f('date', e.repeat ? 'Starts' : 'Date', '', 'date')}</div><div>${f('time', 'Time', '', 'time')}</div></div>
       <div class="two"><div><label class="f" for="nt_duration">Length</label><select class="t" id="nt_duration">${[15, 30, 45, 60, 90, 120, 180].map(m => `<option value="${m}" ${+e.duration === m ? 'selected' : ''}>${m < 60 ? m + ' min' : m / 60 + ' hr'}</option>`).join('')}</select></div>
         <div><label class="f" for="nt_repeat">Repeats</label><select class="t" id="nt_repeat">${['', 'weekly', 'biweekly', 'monthly', 'nth'].map(r => `<option value="${r}" ${(e.repeat || '') === r ? 'selected' : ''}>${esc(netRepeatLabel({ ...e, repeat: r }))}</option>`).join('')}</select></div></div>
@@ -2562,14 +2561,13 @@ async function renderNetItem(v, id, kind) {
     <div class="row" style="margin-top:4px">${e.location ? '<button class="btn ghost" id="nt_dir">Directions</button>' : ''}<button class="btn ghost" id="nt_ics">${I('calendar')}Add to calendar</button></div>
     ${isNew ? '<button class="btn block" id="nt_save" style="margin-top:12px">Save</button>' : '<button class="btn danger block" id="nt_del" style="margin-top:12px">Delete</button>'}`;
     const read = () => {
-      for (const k of ['name', 'date', 'time', 'location', 'contact', 'until', 'coffeeOrder', 'members', 'notes']) { const i = $('#nt_' + k); if (i) e[k] = i.value.trim(); }
+      for (const k of ['name', 'date', 'time', 'location', 'contact', 'until', 'members', 'notes']) { const i = $('#nt_' + k); if (i) e[k] = i.value.trim(); }
       e.duration = +$('#nt_duration').value; e.repeat = $('#nt_repeat').value; if (!e.repeat) e.until = '';
       if ($('#nt_coffee')) e.coffee = $('#nt_coffee').checked; if ($('#nt_active')) e.active = $('#nt_active').checked;
     };
     const save = async () => { read(); if (!isNew && e.name) await DB.put('network', e); };
     v.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { read(); e.kind = b.dataset.kind; if (e.kind === 'coffee' && e.coffee == null) e.coffee = true; if (!isNew) save(); draw(); });
     v.querySelectorAll('input,select,textarea').forEach(i => i.addEventListener('change', async () => { await save(); if (['nt_repeat', 'nt_date', 'nt_location'].includes(i.id)) draw(); }));
-    if ($('#nt_coffee')) $('#nt_coffee').addEventListener('change', () => { $('#nt_cbox').style.display = $('#nt_coffee').checked ? '' : 'none'; });
     if ($('#nt_dir')) $('#nt_dir').onclick = () => openDirections(e.location);
     $('#nt_ics').onclick = () => { read(); netToCalendar([e], `network-${slug(netTitle(e))}.ics`); };
     if (isNew) $('#nt_save').onclick = async () => { read(); if (!e.name) { toast(e.kind === 'coffee' ? 'Who are you meeting?' : 'Give it a name'); return; } if (!e.date) { toast('Pick a date'); return; } await DB.put('network', e); toast('Saved'); nav('#/network'); };
