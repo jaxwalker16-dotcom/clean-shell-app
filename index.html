@@ -531,6 +531,30 @@ select option,select optgroup{background:#0E2A45;color:#F2F4F1}
 .pthumb.net{color:var(--sky);background:rgba(175,216,255,.1)}
 .pthumb.net svg{width:24px;height:24px}
 .pill.coffee{background:rgba(214,170,120,.18);color:#E8C49A}
+/* phase 14: client sort + calendar views */
+.sortchips{display:flex;gap:8px;align-items:center;margin:-2px 0 14px}
+.sortchips .chip{flex:none;padding:7px 12px;font-size:13px}
+.sortchips .chip.on{background:var(--sky);color:var(--navy)}
+.sortlbl{flex:none;font-size:12px;font-weight:600;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.section-h .count{font-weight:400}
+#cv_mode{margin:0 0 14px}
+.calnav{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;margin-bottom:12px;text-align:center}
+.calnav>div{display:flex;flex-direction:column}.calnav b{font-size:18px;letter-spacing:-.02em}
+.wkrow{display:grid;grid-template-columns:46px 1fr;gap:12px;width:100%;text-align:left;border:0;padding:12px 14px;margin-bottom:8px;color:var(--shell);font:inherit;cursor:pointer}
+.wkrow.past{opacity:.5}.wkrow.today{box-shadow:inset 0 0 0 1.5px var(--sky)}
+.wkday{display:flex;flex-direction:column;align-items:center;font-family:var(--display)}.wkday span{font-size:11px;color:var(--mute);font-weight:600}.wkday b{font-size:20px}
+.wkmain{display:flex;flex-direction:column;gap:4px;min-width:0}
+.avbar{height:6px;border-radius:3px;background:rgba(120,200,150,.22);overflow:hidden}.avbar i{display:block;height:100%;border-radius:3px;background:#E0B25A}.avbar i.full{background:#E07A6A}.avbar i.some{background:#AFD8FF}
+.wkav{font-size:13px;font-weight:600}.wkav.open,.wkav.some{color:#8FD6A6}.wkav.busy{color:#E8C27A}.wkav.full{color:#F0958A}
+.wkitem{font-size:13px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.wkitem.net{color:#B9A8E8}
+.mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mgrid.head span{text-align:center;font-size:11px;font-weight:600;color:var(--mute);padding-bottom:4px}
+.mcell{aspect-ratio:1/1.05;border:0;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-family:var(--display);color:var(--shell);background:rgba(255,255,255,.04);cursor:pointer}
+.mcell b{font-size:15px;font-weight:600}.mcell i{font-style:normal;font-size:9px;letter-spacing:1px;height:9px;line-height:9px;color:var(--shell)}
+.mcell.past{opacity:.35}.mcell.today{box-shadow:inset 0 0 0 2px var(--sky)}
+.av-open{background:rgba(80,200,120,.34)!important}.av-some{background:rgba(175,216,255,.14)!important}.av-busy{background:rgba(232,178,90,.28)!important}.av-full{background:rgba(224,110,95,.32)!important}
+.mlegend{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin:14px 0 4px;font-size:12px;color:var(--mute)}
+.mlegend span{display:flex;align-items:center;gap:5px}.mlegend i{width:12px;height:12px;border-radius:4px;display:inline-block}
 </style>
 </head>
 <body>
@@ -1569,16 +1593,19 @@ async function renderCustomers(v) {
   const [cs, jobs] = await Promise.all([DB.all('customers'), DB.all('jobs')]);
   const q = (renderCustomers.q || '').toLowerCase();
   const rows = cs.map(c => { const mine = custJobs(c, jobs); return { c, mine, spend: mine.filter(j => billStatus(j) === 'paid').reduce((a, j) => a + (j.billing.amount ?? jobTotal(j).total), 0), last: mine[0] ? jobDate(mine[0]) : c.createdAt, due: nextDue(c, jobs) }; })
-    .filter(r => !q || [r.c.name, r.c.phone, ...r.mine.map(j => j.vehicle)].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => b.last - a.last);
+    .filter(r => !q || [r.c.name, r.c.phone, r.c.city, ...r.mine.map(j => j.vehicle)].join(' ').toLowerCase().includes(q));
+  const mode = clientSort(), groups = clientGroups(rows, mode);
   if (Sms.on()) { try { await Sms.threads(); } catch {} updateTextBadge(); }
   v.innerHTML = `${!jobberLoaded() ? `<div class="card due"><h2>${I('users')}Your Jobber clients</h2><div class="sub" style="margin-bottom:10px">63 clients and their job history are ready to load onto this device.</div><button class="btn block" id="c_jobber">Load my clients</button></div>` : ''}<input class="t search" id="c_q" type="search" placeholder="Search name, phone or vehicle" value="${esc(renderCustomers.q || '')}">
-    ${rows.length ? `<div class="group">${rows.map(r => `<a class="lrow" href="#/customer/${r.c.id}"><span class="avatar">${esc(((r.c.name || '?').trim().split(/\s+/).map(w => w[0]).join('') || '?').slice(0, 2).toUpperCase())}</span>
+    <div class="secchips sortchips"><span class="sortlbl">Sort</span>${Object.entries(CLIENT_SORTS).map(([k, n]) => `<button class="chip ${k === mode ? 'on' : ''}" data-csort="${k}">${n}</button>`).join('')}</div>
+    ${rows.length ? groups.map(([g, rs]) => `${g ? `<div class="section-h">${esc(g)}<span class="count"> · ${rs.length}</span></div>` : ''}<div class="group">${rs.map(r => `<a class="lrow" href="#/customer/${r.c.id}"><span class="avatar">${esc(((r.c.name || '?').trim().split(/\s+/).map(w => w[0]).join('') || '?').slice(0, 2).toUpperCase())}</span>
       <span class="lmain"><b>${esc(r.c.name || 'Customer')}</b><span class="sub">${esc([...new Set([...r.mine.map(j => j.vehicle), r.c.vehicle].filter(Boolean))].join(', ') || r.c.phone || '')}</span></span>
-      <span class="lside">${r.c.membership && r.c.membership.active ? '<span class="pill done">Member</span>' : ''}${r.due && r.due < Date.now() + 7 * DAY ? `<span class="pill warn">Due ${fmtDate(r.due)}</span>` : r.spend ? `<span class="lmoney">${money(r.spend)}</span>` : ''}</span>
-      <span class="chev">${I('chev')}</span></a>`).join('')}</div>`
+      <span class="lside">${r.c.membership && r.c.membership.active ? '<span class="pill done">Member</span>' : ''}${r.due && r.due < Date.now() + 7 * DAY ? `<span class="pill warn">Due ${fmtDate(r.due)}</span>` : clientSideHtml(r, mode) ?? (r.spend ? `<span class="lmoney">${money(r.spend)}</span>` : '')}</span>
+      <span class="chev">${I('chev')}</span></a>`).join('')}</div>`).join('')
     : `<div class="empty"><span class="ring">${I('users')}</span><p><b>No clients yet</b></p></div>`}`;
   if ($('#c_jobber')) $('#c_jobber').onclick = loadJobberClients;
+  v.querySelectorAll('[data-csort]').forEach(b => b.onclick = () => { Settings.set({ clientSort: b.dataset.csort }); renderCustomers(v); });
+  v.querySelectorAll('.sortchips').forEach(dragScroll); const on = v.querySelector('.sortchips .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
   const s = $('#c_q'); s.oninput = () => { renderCustomers.q = s.value; clearTimeout(s._t); s._t = setTimeout(() => renderCustomers(v).then(() => { const n = $('#c_q'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }), 250); };
 }
 
@@ -1673,6 +1700,7 @@ function renderServices(v) {
 </div>
   <div class="card"><h2>Clients</h2>
     <label class="f" for="sv_map">Directions open in</label><select class="t" id="sv_map"><option value="">Ask every time</option>${Object.entries(MAP_APPS).map(([k, m]) => `<option value="${k}" ${s.mapApp === k ? 'selected' : ''}>${esc(m.name)}</option>`).join('')}</select>
+    <div class="two"><div><label class="f" for="sv_ws">Workday starts</label><input class="t" id="sv_ws" type="time" value="${esc(workHours().start)}"></div><div><label class="f" for="sv_we">Workday ends</label><input class="t" id="sv_we" type="time" value="${esc(workHours().end)}"></div></div>
     <button class="btn ghost block" id="sv_ref" style="margin-top:12px">Edit referral sources</button>
     <button class="btn ghost block" id="sv_jobber" style="margin-top:8px">Load Jobber clients</button><button class="btn ghost block" id="sv_import" style="margin-top:8px">Import clients from file</button><input type="file" id="sv_importfile" accept=".json,application/json" hidden></div>
   <div class="card"><h2>Services<span class="count">Small · Medium · Large</span></h2>
@@ -1690,6 +1718,8 @@ function renderServices(v) {
   $('#sv_map').onchange = e => Settings.set({ mapApp: e.target.value });
   $('#sv_ref').onclick = () => referralSheet();
   $('#sv_jobber').onclick = loadJobberClients;
+  $('#sv_ws').onchange = e => Settings.set({ workStart: e.target.value || '08:00' });
+  $('#sv_we').onchange = e => Settings.set({ workEnd: e.target.value || '18:00' });
   $('#sv_import').onclick = () => { const i = $('#sv_importfile'); i.value = ''; i.click(); };
   $('#sv_importfile').onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { const r = await importClients(JSON.parse(await fl.text())); toast(`Added ${r.added} client${r.added === 1 ? '' : 's'}${r.jobs ? ` and ${r.jobs} job${r.jobs === 1 ? '' : 's'}` : ''}${r.skipped + r.jobsSkipped ? ` · skipped ${r.skipped + r.jobsSkipped} already here` : ''}${r.removed ? ` · removed ${r.removed} old job${r.removed === 1 ? '' : 's'}` : ''}`, 5000); } catch (err) { toast('That file couldn\'t be read'); } };
   v.querySelectorAll('[data-sn]').forEach(i => i.onchange = () => { cat[+i.dataset.sn].name = i.value.trim(); Catalog.set(cat); });
@@ -2118,6 +2148,10 @@ async function renderSchedule(v) {
   const jobs = await DB.all('jobs'), net = (await DB.all('network')).filter(e => e.active !== false);
   const netOn = k => net.filter(e => netOccurs(e, k)).sort((a, b) => (a.time || '99') < (b.time || '99') ? -1 : 1);
   const sel = renderSchedule.day || dayKey(new Date());
+  const mode = renderSchedule.mode || Settings.get().calMode || 'day';
+  const go2 = (k, m) => { renderSchedule.day = k; if (m) renderSchedule.mode = m; renderSchedule(v); };
+  const setMode = m => { renderSchedule.mode = m; Settings.set({ calMode: m }); renderSchedule(v); };
+  if (mode === 'week' || mode === 'month') { headerAdd('#/book/' + sel, 'Book job'); (mode === 'week' ? renderWeekView : renderMonthView)(v, jobs, net, sel, dayKey(new Date()), go2, setMode); return; }
   const selD = new Date(sel + 'T12:00:00');
   const weekStart = new Date(selD); weekStart.setDate(selD.getDate() - selD.getDay());
   const days = [...Array(7)].map((_, i) => { const d = new Date(weekStart); d.setDate(weekStart.getDate() + i); return d; });
@@ -2125,7 +2159,7 @@ async function renderSchedule(v) {
   const list = byDay(sel), todayK = dayKey(new Date());
   const hours = list.reduce((a, j) => a + (+j.duration || 3), 0), booked = list.reduce((a, j) => a + jobTotal(j).total, 0);
   const last = list.filter(j => j.time).map(jobEnd).sort((a, b) => b - a)[0];
-  v.innerHTML = `<div class="week">
+  v.innerHTML = `${schedModeHtml('day')}<div class="week">
       <button class="x" id="wk_prev" aria-label="Previous week">${I('back')}</button>
       <div class="days">${days.map(d => { const k = dayKey(d), n = byDay(k).length + netOn(k).length; return `<button class="day ${k === sel ? 'on' : ''} ${k === todayK ? 'today' : ''}" data-day="${k}"><span>${d.toLocaleDateString([], { weekday: 'narrow' })}</span><b>${d.getDate()}</b><i>${n ? '•'.repeat(Math.min(n, 3)) : ''}</i></button>`; }).join('')}</div>
       <button class="x" id="wk_next" aria-label="Next week">${I('chev')}</button>
@@ -2141,7 +2175,7 @@ async function renderSchedule(v) {
   $('#wk_prev').onclick = () => { const d = new Date(selD); d.setDate(d.getDate() - 7); go(dayKey(d)); };
   $('#wk_next').onclick = () => { const d = new Date(selD); d.setDate(d.getDate() + 7); go(dayKey(d)); };
   if ($('#wk_today')) $('#wk_today').onclick = () => go(todayK);
-  bindAgenda(v, jobs); bindNetCards(v, net);
+  bindAgenda(v, jobs); bindNetCards(v, net); bindSchedMode(v, setMode);
 }
 
 /* ---------- phase 8: expenses, mileage, messages tab ---------- */
@@ -2575,6 +2609,91 @@ async function renderNetItem(v, id, kind) {
   };
   draw();
 }
+
+/* ---------- phase 14: client sorting + week/month availability ---------- */
+const CLIENT_SORTS = { recent: 'Recent activity', az: 'First name', last: 'Last name', spend: 'Top spenders', visits: 'Most visits', stale: 'Not seen lately', city: 'City', referral: 'Referral source' };
+const clientSort = () => { const s = Settings.get().clientSort; return CLIENT_SORTS[s] ? s : 'recent'; };
+const lastName = n => { const p = String(n || '').trim().split(/\s+/); return (p.length > 1 ? p[p.length - 1] + ' ' + p.slice(0, -1).join(' ') : p[0] || '').toLowerCase(); };
+function clientGroups(rows, mode) {
+  const by = (f, cmp) => rows.slice().sort(cmp || ((a, b) => String(f(a)).localeCompare(String(f(b)))));
+  const letter = s => (/[a-z]/i.test(s[0] || '') ? s[0].toUpperCase() : '#');
+  const bucket = (list, keyOf, order) => { const m = new Map(); list.forEach(r => { const k = keyOf(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }); const ks = [...m.keys()]; if (order) ks.sort(order); return ks.map(k => [k, m.get(k)]); };
+  switch (mode) {
+    case 'az': return bucket(by(r => (r.c.name || '').toLowerCase()), r => letter((r.c.name || '').trim()));
+    case 'last': return bucket(by(r => lastName(r.c.name)), r => letter(lastName(r.c.name)));
+    case 'spend': return [['', by(null, (a, b) => b.spend - a.spend)]];
+    case 'visits': return [['', by(null, (a, b) => b.mine.length - a.mine.length || b.spend - a.spend)]];
+    case 'stale': return [['', by(null, (a, b) => a.last - b.last)]];
+    case 'city': { const k = r => (r.c.city || '').trim() || 'No city'; return bucket(by(r => (r.c.name || '').toLowerCase()), k, (a, b) => (a === 'No city') - (b === 'No city') || a.localeCompare(b)); }
+    case 'referral': { const k = r => (r.c.referral || '').trim() || 'Unknown'; return bucket(by(r => (r.c.name || '').toLowerCase()), k, (a, b) => (a === 'Unknown') - (b === 'Unknown') || a.localeCompare(b)); }
+    default: return [['', by(null, (a, b) => b.last - a.last)]];
+  }
+}
+function clientSideHtml(r, mode) {
+  if (mode === 'spend') return r.spend ? `<span class="lmoney">${money(r.spend)}</span>` : '<span class="sub">$0</span>';
+  if (mode === 'visits') return `<span class="sub">${r.mine.length} visit${r.mine.length === 1 ? '' : 's'}</span>`;
+  if (mode === 'stale' || mode === 'recent') return r.mine.length ? `<span class="sub">${fmtDate(r.last)}</span>` : '<span class="sub">No visits</span>';
+  return null;
+}
+
+/* availability */
+const workHours = () => { const s = Settings.get(); return { start: s.workStart || '08:00', end: s.workEnd || '18:00' }; };
+const minOf = t => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+const fmtMin = m => { const d = new Date(2000, 0, 1, Math.floor(m / 60), m % 60); return d.toLocaleTimeString([], { hour: 'numeric', minute: m % 60 ? '2-digit' : undefined }); };
+function dayLoad(k, jobs, net) {
+  const wh = workHours(), ws = minOf(wh.start), we = minOf(wh.end);
+  const js = jobs.filter(j => j.date === k), ns = net.filter(e => netOccurs(e, k));
+  const iv = [...js.map(j => { const s = minOf(j.time || wh.start); return [s, s + (+j.duration || 3) * 60]; }), ...ns.filter(e => e.time).map(e => { const s = minOf(e.time); return [s, s + (+e.duration || 60)]; })]
+    .map(([a, b]) => [Math.max(a, ws), Math.min(b, we)]).filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0]);
+  const merged = []; iv.forEach(x => { const l = merged[merged.length - 1]; if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else merged.push([...x]); });
+  const busy = merged.reduce((a, [s, e]) => a + e - s, 0), total = Math.max(we - ws, 1);
+  const gaps = []; let c = ws; merged.forEach(([s, e]) => { if (s - c >= 60) gaps.push([c, s]); c = Math.max(c, e); }); if (we - c >= 60) gaps.push([c, we]);
+  const pct = busy / total, level = !busy ? 'open' : pct >= .85 ? 'full' : pct >= .5 ? 'busy' : 'some';
+  return { js, ns, busy, free: Math.max(total - busy, 0), gaps, level, count: js.length + ns.length };
+}
+const hrs = m => { const h = Math.round(m / 30) / 2; return h + ' hr'; };
+const AVAIL = { open: 'Open', some: 'Mostly open', busy: 'Filling up', full: 'Booked' };
+
+function renderWeekView(v, jobs, net, sel, todayK, go, setMode) {
+  const selD = new Date(sel + 'T12:00:00'), ws = new Date(selD); ws.setDate(selD.getDate() - selD.getDay());
+  const days = [...Array(7)].map((_, i) => { const d = new Date(ws); d.setDate(ws.getDate() + i); return d; });
+  const we = days[6], wh = workHours();
+  const loads = days.map(d => ({ d, k: dayKey(d), L: dayLoad(dayKey(d), jobs, net) }));
+  const openDays = loads.filter(x => x.k >= todayK && x.L.level !== 'full').length, freeTot = loads.filter(x => x.k >= todayK).reduce((a, x) => a + x.L.free, 0);
+  v.innerHTML = `${schedModeHtml('week')}
+    <div class="calnav"><button class="x" id="cv_prev" aria-label="Previous week">${I('back')}</button>
+      <div><b>${ws.toLocaleDateString([], { month: 'short', day: 'numeric' })} – ${we.toLocaleDateString([], { month: ws.getMonth() === we.getMonth() ? undefined : 'short', day: 'numeric' })}</b><span class="sub">${hrs(freeTot)} open · ${openDays} day${openDays === 1 ? '' : 's'} with room · hours ${fmtMin(minOf(wh.start))}–${fmtMin(minOf(wh.end))}</span></div>
+      <button class="x" id="cv_next" aria-label="Next week">${I('chev')}</button></div>
+    ${loads.map(({ d, k, L }) => { const past = k < todayK; return `<button class="wkrow card ${past ? 'past' : ''} ${k === todayK ? 'today' : ''}" data-go="${k}">
+      <span class="wkday"><span>${d.toLocaleDateString([], { weekday: 'short' })}</span><b>${d.getDate()}</b></span>
+      <span class="wkmain"><span class="avbar"><i class="${L.level}" style="width:${Math.round((1 - L.free / Math.max(L.busy + L.free, 1)) * 100)}%"></i></span>
+        <span class="wkav ${L.level}">${past ? (L.count ? L.count + ' item' + (L.count > 1 ? 's' : '') : '—') : L.level === 'full' ? 'Booked' : L.gaps.length ? 'Free ' + L.gaps.map(([a, b]) => fmtMin(a) + '–' + fmtMin(b)).join(', ') : hrs(L.free) + ' open'}</span>
+        ${[...L.js.sort((a, b) => (a.time || '99').localeCompare(b.time || '99')).map(j => `<span class="wkitem">${j.time ? fmtTime(jobStart(j)) : 'Any'} · ${esc(j.customer || 'Job')}</span>`), ...L.ns.map(e => `<span class="wkitem net">${e.time ? fmtMin(minOf(e.time)) : 'Any'} · ${esc(netTitle(e))}</span>`)].join('')}
+      </span></button>`; }).join('')}`;
+  $('#cv_prev').onclick = () => { const d = new Date(selD); d.setDate(d.getDate() - 7); go(dayKey(d), 'week'); };
+  $('#cv_next').onclick = () => { const d = new Date(selD); d.setDate(d.getDate() + 7); go(dayKey(d), 'week'); };
+  v.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go, 'day'));
+  bindSchedMode(v, setMode);
+}
+function renderMonthView(v, jobs, net, sel, todayK, go, setMode) {
+  const selD = new Date(sel + 'T12:00:00'), first = new Date(selD.getFullYear(), selD.getMonth(), 1), n = dim(first);
+  const cells = [...Array(first.getDay()).fill(null), ...[...Array(n)].map((_, i) => new Date(first.getFullYear(), first.getMonth(), i + 1, 12))];
+  const loads = cells.map(d => d && { d, k: dayKey(d), L: dayLoad(dayKey(d), jobs, net) });
+  const ahead = loads.filter(x => x && x.k >= todayK), openDays = ahead.filter(x => x.L.level === 'open').length, room = ahead.filter(x => x.L.level !== 'full').length;
+  const mv = delta => go(dayKey(new Date(first.getFullYear(), first.getMonth() + delta, 1, 12)), 'month');
+  v.innerHTML = `${schedModeHtml('month')}
+    <div class="calnav"><button class="x" id="cv_prev" aria-label="Previous month">${I('back')}</button>
+      <div><b>${first.toLocaleDateString([], { month: 'long', year: 'numeric' })}</b><span class="sub">${openDays} open day${openDays === 1 ? '' : 's'} · ${room} with room left</span></div>
+      <button class="x" id="cv_next" aria-label="Next month">${I('chev')}</button></div>
+    <div class="mgrid head">${['S', 'M', 'T', 'W', 'T', 'F', 'S'].map(x => `<span>${x}</span>`).join('')}</div>
+    <div class="mgrid">${loads.map(x => !x ? '<span></span>' : `<button class="mcell ${x.k < todayK ? 'past' : 'av-' + x.L.level} ${x.k === todayK ? 'today' : ''}" data-go="${x.k}"><b>${x.d.getDate()}</b><i>${x.L.count ? '•'.repeat(Math.min(x.L.count, 3)) : ''}</i></button>`).join('')}</div>
+    <div class="mlegend">${['open', 'some', 'busy', 'full'].map(l => `<span><i class="av-${l}"></i>${AVAIL[l]}</span>`).join('')}</div>`;
+  $('#cv_prev').onclick = () => mv(-1); $('#cv_next').onclick = () => mv(1);
+  v.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go, 'day'));
+  bindSchedMode(v, setMode);
+}
+const schedModeHtml = m => `<div class="sizes" id="cv_mode">${['day', 'week', 'month'].map(x => `<button class="${m === x ? 'on' : ''}" data-mode="${x}">${x[0].toUpperCase() + x.slice(1)}</button>`).join('')}</div>`;
+function bindSchedMode(v, setMode) { v.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => setMode(b.dataset.mode)); }
 
 function confirmAsk(m) { return typeof ask === 'function' ? ask(m) : Promise.resolve(false); }
 
